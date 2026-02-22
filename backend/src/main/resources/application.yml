@@ -1,6 +1,8 @@
 spring:
   application:
     name: SafeScan24
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.http.client.HttpClientAutoConfiguration
   datasource:
     url: jdbc:postgresql://${SUPABASE_HOST}:${SUPABASE_PORT}/${SUPABASE_DB}
     username: ${SUPABASE_USER}
@@ -23,6 +25,8 @@ app:
   frontend-url: ${FRONTEND_URL}
   jwt-secret: ${JWT_SECRET}
   firebase-service-account: classpath:firebase-service-account.json
+  turn-url: ${TURN_URL:turns:placeholder.metered.live:443}
+  turn-secret: ${TURN_SECRET:placeholder}
 
 server:
   port: 8080
