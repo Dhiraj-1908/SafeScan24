@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: SafeScan24
+  datasource:
+    url: jdbc:postgresql://${SUPABASE_HOST}:${SUPABASE_PORT}/${SUPABASE_DB}
+    username: ${SUPABASE_USER}
+    password: ${SUPABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+app:
+  exotel-account-sid: ${EXOTEL_ACCOUNT_SID}
+  exotel-api-key: ${EXOTEL_API_KEY}
+  exotel-api-token: ${EXOTEL_API_TOKEN}
+  exotel-phone: ${EXOTEL_PHONE}
+  admin-secret: ${ADMIN_SECRET}
+  frontend-url: ${FRONTEND_URL}
+  jwt-secret: ${JWT_SECRET}
+  firebase-service-account: classpath:firebase-service-account.json
+
+server:
+  port: 8080

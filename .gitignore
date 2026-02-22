@@ -1,0 +1,26 @@
+# Secrets - NEVER commit
+.env
+.env.local
+.env.production
+firebase-service-account.json
+backend/src/main/resources/firebase-service-account.json
+
+# Backend build
+target/
+*.class
+*.jar
+*.zip
+HELP.md
+.mvn/
+mvnw
+mvnw.cmd
+
+# Frontend (for later)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
