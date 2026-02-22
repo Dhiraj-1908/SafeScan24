@@ -4,9 +4,9 @@ spring:
   autoconfigure:
     exclude: org.springframework.boot.autoconfigure.http.client.HttpClientAutoConfiguration
   datasource:
-    url: jdbc:postgresql://${SUPABASE_HOST}:${SUPABASE_PORT}/${SUPABASE_DB}
-    username: ${SUPABASE_USER}
-    password: ${SUPABASE_PASSWORD}
+    url: jdbc:postgresql://aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres
+    username: postgres.knptdhbeoyvbtyyjdgip
+    password: Dhiraj@190819
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -17,16 +17,15 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 app:
-  exotel-account-sid: ${EXOTEL_ACCOUNT_SID}
-  exotel-api-key: ${EXOTEL_API_KEY}
-  exotel-api-token: ${EXOTEL_API_TOKEN}
-  exotel-phone: ${EXOTEL_PHONE}
-  admin-secret: ${ADMIN_SECRET}
-  frontend-url: ${FRONTEND_URL}
-  jwt-secret: ${JWT_SECRET}
-  firebase-service-account: classpath:firebase-service-account.json
-  turn-url: ${TURN_URL:turns:placeholder.metered.live:443}
-  turn-secret: ${TURN_SECRET:placeholder}
+  exotel-account-sid: safescan241
+  exotel-api-key: 0234315563bb98ca31d572d47040d443468c9e91a6604504
+  exotel-api-token: e2b5194853c3def4c5b592382f6d9e924a82e372a7415346
+  exotel-phone: "08045889127"
+  admin-secret: QRGuardianAdmin2026SecureKey
+  jwt-secret: mySecretKey1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef
+  frontend-url: http://localhost:3000
+  turn-url: "turns:placeholder.metered.live:443"
+  turn-secret: placeholder
 
 server:
   port: 8080
