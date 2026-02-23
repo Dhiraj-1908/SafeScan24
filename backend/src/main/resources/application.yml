@@ -17,15 +17,16 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 app:
-  exotel-account-sid: safescan241
-  exotel-api-key: 0234315563bb98ca31d572d47040d443468c9e91a6604504
-  exotel-api-token: e2b5194853c3def4c5b592382f6d9e924a82e372a7415346
-  exotel-phone: "08045889127"
+  fast2sms-api-key: KjzHALWwWzy7SkWiF3613IKW4eyfcRS7zI26dyHPywrCCPIEWAObFkw5v4ab
   admin-secret: QRGuardianAdmin2026SecureKey
   jwt-secret: mySecretKey1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef
   frontend-url: http://localhost:3000
   turn-url: "turns:placeholder.metered.live:443"
   turn-secret: placeholder
+  exotel-sid: safescan241
+  exotel-api-key: 0234315563bb98ca31d572d47040d443468c9e91a6604504
+  exotel-api-token: e2b5194853c3def4c5b592382f6d9e924a82e372a7415346
+  exotel-phone: 08045889127
 
 server:
   port: 8080

@@ -8,8 +8,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.Base64;
-//import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,33 +15,23 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class OtpService {
 
-    @Value("${app.exotel-account-sid}")
-    private String accountSid;
-
-    @Value("${app.exotel-api-key}")
+    @Value("${app.fast2sms-api-key}")
     private String apiKey;
 
-    @Value("${app.exotel-api-token}")
-    private String apiToken;
-
-    @Value("${app.exotel-phone}")
-    private String fromPhone;
-
-    // phone → OtpEntry (in-memory, resets on restart — fine for MVP)
     private final ConcurrentHashMap<String, OtpEntry> store = new ConcurrentHashMap<>();
 
-    private static final long OTP_EXPIRY_MS = 10 * 60 * 1000L; // 10 minutes
-    private static final int MAX_ATTEMPTS = 3;
+    private static final long OTP_EXPIRY_MS  = 10 * 60 * 1000L;
+    private static final int  MAX_ATTEMPTS   = 3;
 
-    // ── Generate and send OTP ─────────────────────────────────────────────
+    // ── Send OTP ──────────────────────────────────────────────────────────
     public boolean sendOtp(String phone, String type) {
         String code = String.format("%06d", new Random().nextInt(1_000_000));
         store.put(phone, new OtpEntry(code, type, System.currentTimeMillis()));
 
         String message = switch (type) {
-            case "REGISTRATION" -> "Your SafeScan24 verification code: " + code + ". Valid for 10 minutes.";
-            case "CONTACT_VERIFY" -> "SafeScan24: Share this code with the item owner to be added as their emergency contact: " + code;
-            default -> "Your SafeScan24 code: " + code;
+            case "REGISTRATION"   -> "Your SafeScan verification code: " + code + ". Valid 10 mins.";
+            case "CONTACT_VERIFY" -> "SafeScan: Share this code with the item owner to be added as emergency contact: " + code;
+            default               -> "Your SafeScan code: " + code;
         };
 
         return sendSms(phone, message);
@@ -70,49 +58,51 @@ public class OtpService {
         return false;
     }
 
-    // ── Exotel SMS ────────────────────────────────────────────────────────
-    private boolean sendSms(String to, String message) {
+    // ── Fast2SMS ──────────────────────────────────────────────────────────
+    private boolean sendSms(String phone, String message) {
         try {
-            String url = "https://api.exotel.com/v1/Accounts/" + accountSid + "/Sms/send";
-            String body = "From=" + fromPhone
-                    + "&To=" + to
-                    + "&Body=" + java.net.URLEncoder.encode(message, "UTF-8");
+            // Strip country code if present — Fast2SMS needs 10-digit Indian numbers
+            String number = phone.replaceAll("\\+91", "").replaceAll("[^0-9]", "");
 
-            String auth = Base64.getEncoder().encodeToString(
-                    (apiKey + ":" + apiToken).getBytes());
+            String url = "https://www.fast2sms.com/dev/bulkV2"
+                + "?authorization=" + apiKey
+                + "&message=" + java.net.URLEncoder.encode(message, "UTF-8")
+                + "&language=english"
+                + "&route=q"
+                + "&numbers=" + number;
 
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Authorization", "Basic " + auth)
-                    .header("Content-Type", "application/x-www-form-urlencoded")
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
+                .uri(URI.create(url))
+                .GET()
+                .build();
 
-            HttpResponse<String> response = client.send(request,
-                    HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = client.send(
+                request, HttpResponse.BodyHandlers.ofString());
 
-            log.info("Exotel SMS to {} status: {}", to, response.statusCode());
-            return response.statusCode() == 200 || response.statusCode() == 201;
+            log.info("Fast2SMS to {} status: {} body: {}",
+                number, response.statusCode(), response.body());
+
+            return response.statusCode() == 200;
 
         } catch (Exception e) {
-            log.error("Failed to send SMS to {}: {}", to, e.getMessage());
-            // In dev: log OTP so you can test without real SMS
-            log.warn("DEV FALLBACK — OTP for {}: {}", to, store.getOrDefault(to,
-                    new OtpEntry("N/A", "N/A", 0)).code);
+            log.error("Fast2SMS failed for {}: {}", phone, e.getMessage());
+            // DEV fallback — log OTP so you can test without real SMS
+            OtpEntry entry = store.get(phone);
+            if (entry != null) log.warn("DEV OTP for {}: {}", phone, entry.code);
             return false;
         }
     }
 
-    private static class OtpEntry {
+    static class OtpEntry {
         String code;
         String type;
-        long createdAt;
-        int attempts = 0;
+        long   createdAt;
+        int    attempts = 0;
 
         OtpEntry(String code, String type, long createdAt) {
-            this.code = code;
-            this.type = type;
+            this.code      = code;
+            this.type      = type;
             this.createdAt = createdAt;
         }
     }
