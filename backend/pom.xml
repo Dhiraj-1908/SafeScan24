@@ -119,6 +119,11 @@
 			<version>0.12.6</version>
 			<scope>runtime</scope>
 		</dependency>
+		<dependency>
+    <groupId>com.google.firebase</groupId>
+    <artifactId>firebase-admin</artifactId>
+    <version>9.2.0</version>
+</dependency>
 
 		<!-- ════════════════════════════════════════════
 		     NEW — Apache HttpClient 5

@@ -1,5 +1,4 @@
 package com.safescan24.backend.config;
-
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -13,8 +12,5 @@ public class AppProperties {
     private String frontendUrl;
     private String turnUrl;
     private String turnSecret;
-    private String exotelAccountSid;
-    private String exotelApiKey;
-    private String exotelApiToken;
-    private String exotelPhone;
+    private String fast2smsApiKey;
 }
