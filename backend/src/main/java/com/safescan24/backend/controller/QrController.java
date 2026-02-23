@@ -53,6 +53,7 @@ public class QrController {
 
                     Map<String, Object> result = new LinkedHashMap<>();
                     result.put("status",       "claimed");
+                    result.put("slugId",       qr.getId().toString());   // ← ADD THIS
                     result.put("ownerName",    owner.getName());
                     result.put("ownerId",      ownerId.toString());
                     result.put("ownerPhone",   owner.getPhone());
