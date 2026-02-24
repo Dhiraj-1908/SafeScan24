@@ -1,28 +1,161 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
-  * {
-    box-sizing: border-box;
-  }
+/* ─── Design Tokens ────────────────────────────────────────────────────────── */
+:root {
+  /* Brand */
+  --red:          #FF3B30;
+  --red-light:    #FFF0EF;
+  --amber:        #FF9500;
+  --amber-light:  #FFF8EE;
+  --blue:         #007AFF;
+  --blue-light:   #EFF6FF;
+  --green:        #34C759;
+  --green-light:  #EDFAF1;
 
-  html {
-    -webkit-tap-highlight-color: transparent;
-  }
+  /* Neutrals — Apple HIG gray scale */
+  --gray-1: #F2F2F7;
+  --gray-2: #E5E5EA;
+  --gray-3: #C7C7CC;
+  --gray-4: #AEAEB2;
+  --gray-5: #8E8E93;
+  --gray-6: #636366;
+  --gray-7: #3A3A3C;
+  --gray-8: #1C1C1E;
 
-  body {
-    @apply bg-gray-50 text-gray-900;
-  }
+  /* Surfaces */
+  --surface:        #FFFFFF;
+  --surface-raised: #F9F9FB;
+  --surface-sunken: #F2F2F7;
 
-  input[type="number"]::-webkit-inner-spin-button,
-  input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
+  /* Typography scale */
+  --text-xs:   11px;
+  --text-sm:   13px;
+  --text-base: 15px;
+  --text-md:   17px;
+  --text-lg:   22px;
+  --text-xl:   28px;
+  --text-2xl:  34px;
+  --text-hero: 48px;
+
+  /* Radii */
+  --r-sm:  8px;
+  --r-md:  12px;
+  --r-lg:  16px;
+  --r-xl:  20px;
+  --r-2xl: 28px;
+
+  /* Shadows — feather-light, Apple-style */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.06), 0 12px 32px rgba(0,0,0,0.06);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.07), 0 24px 48px rgba(0,0,0,0.07);
 }
 
+/* ─── Reset ────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "SF Pro Display",
+    "Helvetica Neue",
+    system-ui,
+    sans-serif;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  background: var(--surface);
+  color: var(--gray-8);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-raised);
+  overscroll-behavior: none;
+}
+
+/* Kill number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+
+/* Prevent iOS zoom on input focus — font-size must be ≥ 16px */
+input, textarea, select { font-size: 16px !important; }
+
+button, a, input, select, textarea, label { touch-action: manipulation; }
+
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+:focus:not(:focus-visible) { outline: none; }
+
+/* ─── Safe Area Utilities ───────────────────────────────────────────────────── */
 @layer utilities {
-  .safe-top    { padding-top:    env(safe-area-inset-top); }
-  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe  { padding-top: env(safe-area-inset-top); }
+  .pb-safe  { padding-bottom: env(safe-area-inset-bottom); }
+  .pl-safe  { padding-left: env(safe-area-inset-left); }
+  .pr-safe  { padding-right: env(safe-area-inset-right); }
+  .px-safe  { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+
+  .min-h-dvh { min-height: 100dvh; }
+  .h-dvh     { height: 100dvh; }
+
+  .bottom-safe { bottom: env(safe-area-inset-bottom); }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .scroll-ios { -webkit-overflow-scrolling: touch; }
+
+  .touch-target { min-height: 44px; min-width: 44px; }
+}
+
+/* ─── Animations ────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .animate-fade-up {
+    animation: fadeUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.25s ease both;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Emergency pulse — red glow ring */
+  .animate-pulse-red {
+    animation: pulseRed 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulseRed {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.3); }
+    50%       { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); }
+  }
+
+  /* Bottom sheet slide up */
+  .animate-slide-up {
+    animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(100%); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 }

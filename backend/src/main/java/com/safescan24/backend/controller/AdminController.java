@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -16,9 +17,18 @@ import java.util.Map;
 public class AdminController {
 
     private final QrSlugRepository slugRepo;
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final String CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
 
     @Value("${app.admin-secret}")
     private String adminSecret;
+
+    private String generateSlug(int length) {
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++)
+            sb.append(CHARS.charAt(RANDOM.nextInt(CHARS.length())));
+        return sb.toString();
+    }
 
     @PostMapping("/generate")
     public ResponseEntity<?> generate(
@@ -32,14 +42,16 @@ public class AdminController {
         if (count < 1 || count > 200)
             return ResponseEntity.badRequest().body(Map.of("error", "Count must be 1-200"));
 
-        long next = slugRepo.findMaxNumericSlug().orElse(9999L) + 1;
-
         List<String> slugs = new ArrayList<>();
         for (int i = 0; i < count; i++) {
+            String slug;
+            do {
+                slug = generateSlug(8); // e.g. "k9xP2mRb"
+            } while (slugRepo.findBySlug(slug).isPresent()); // ensure unique
             QrSlug qs = new QrSlug();
-            qs.setSlug(String.valueOf(next + i));
+            qs.setSlug(slug);
             slugRepo.save(qs);
-            slugs.add(String.valueOf(next + i));
+            slugs.add(slug);
         }
 
         return ResponseEntity.ok(Map.of("slugs", slugs, "count", count));
