@@ -1,206 +1,269 @@
 "use client";
 import React from "react";
 import { useParams } from "next/navigation";
-import { scanQR, QRScanResult, EmergencyContact } from "@/lib/api";
-import { Logo, Button, Spinner, Alert, Card, Shell, Input } from "@/lib/ui";
+import { scanQR } from "@/lib/api";
+import { Button, FullPageSpinner } from "@/lib/ui";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+type CallState = "idle" | "calling" | "called" | "error";
 
-type CallState = "idle" | "prompting" | "calling" | "called" | "error";
+interface Contact {
+  id: string;
+  name: string;
+  relationship: string;
+  isOwner?: boolean;
+}
+
+interface QRData {
+  ownerName: string;
+  ownerId: string;
+  contacts: Contact[];
+}
+
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (raw.startsWith("+")) return raw.trim();
+  if (digits.length === 10) return `+91${digits}`;
+  return raw.trim();
+}
 
 export default function EmergencyPage() {
-  const { slug } = useParams<{ slug: string }>();
-  const [data, setData]       = React.useState<QRScanResult | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError]     = React.useState("");
+  const params = useParams();
+  const slug = typeof params.slug === "string" ? params.slug : "";
 
-  const [activeContact, setActiveContact] = React.useState<EmergencyContact | null>(null);
-  const [callState, setCallState]         = React.useState<CallState>("idle");
-  const [callError, setCallError]         = React.useState("");
-  const [scannerPhone, setScannerPhone]   = React.useState("");
-  const [calling, setCalling]             = React.useState(false);
+  const [qr, setQr]                   = React.useState<QRData | null>(null);
+  const [pageLoading, setPageLoading] = React.useState(true);
+  const [pageError, setPageError]     = React.useState("");
+
+  const [selectedContact, setSelectedContact] = React.useState<Contact | null>(null);
+  const [scannerPhone, setScannerPhone]       = React.useState("");
+  const [callState, setCallState]             = React.useState<CallState>("idle");
+  const [callError, setCallError]             = React.useState("");
 
   React.useEffect(() => {
+    if (!slug) return;
     scanQR(slug)
-      .then(setData)
-      .catch(() => setError("Could not load emergency contacts."))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (!data || data.status !== "claimed") {
+          setPageError("This QR code is not set up yet.");
+          return;
+        }
+        setQr({
+          ownerName: String(data.ownerName ?? "Unknown"),
+          ownerId:   String(data.ownerId ?? ""),
+          contacts:  Array.isArray(data.contacts) ? data.contacts : [],
+        });
+      })
+      .catch(() => setPageError("Could not load this QR code."))
+      .finally(() => setPageLoading(false));
   }, [slug]);
 
-  function promptCall(contact: EmergencyContact) {
-    setActiveContact(contact);
-    setCallState("prompting");
-    setCallError("");
-    setScannerPhone("");
-  }
-
-  async function confirmCall() {
-    if (!activeContact || !scannerPhone.trim()) return;
-    setCalling(true);
+  async function handleCall() {
+    const sc = selectedContact;
+    if (!sc) return;
+    const formatted = formatPhone(scannerPhone);
+    if (!formatted || formatted.length < 10) {
+      setCallError("Enter your phone number first");
+      return;
+    }
+    setCallState("calling");
     setCallError("");
     try {
+      const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+      const payload = sc.isOwner
+        ? { ownerId: sc.id, scannerPhone: formatted }
+        : { contactId: sc.id, scannerPhone: formatted };
       const res = await fetch(`${BASE}/api/call/initiate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contactId:    activeContact.id,
-          scannerPhone: scannerPhone.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed to initiate call");
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(String(err.error ?? err.message ?? "Call failed"));
       }
       setCallState("called");
-    } catch (e: any) {
-      setCallError(e.message ?? "Something went wrong");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Call failed. Please try again.";
+      setCallError(msg);
       setCallState("error");
-    } finally {
-      setCalling(false);
     }
   }
 
   function resetCall() {
-    setActiveContact(null);
+    setSelectedContact(null);
+    setScannerPhone("");
     setCallState("idle");
     setCallError("");
-    setScannerPhone("");
   }
 
-  if (loading) {
+  function openCallSheet(contact: Contact) {
+    setSelectedContact(contact);
+    setCallState("idle");
+    setCallError("");
+  }
+
+  // ── Loading ────────────────────────────────────────────────────────────
+  if (pageLoading) return <FullPageSpinner label="Loading…" />;
+
+  // ── Error ──────────────────────────────────────────────────────────────
+  if (!qr) {
     return (
-      <Shell>
-        <div className="flex flex-col items-center gap-3 text-gray-500">
-          <Spinner className="w-8 h-8 text-red-500" />
-          <p className="text-sm">Loading emergency contacts...</p>
-        </div>
-      </Shell>
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
+        <p className="text-[40px] mb-4">⚠️</p>
+        <p className="font-bold text-[17px] text-[#1C1C1E] mb-2">QR not found</p>
+        <p className="text-[14px] text-[#8E8E93]">{pageError}</p>
+      </div>
     );
   }
 
-  if (error || !data) {
-    return (
-      <Shell>
-        <div className="mb-8 text-center"><Logo size="lg" /></div>
-        <Card className="text-center">
-          <div className="text-4xl mb-3">⚠️</div>
-          <p className="text-gray-600 text-sm">{error || "Something went wrong."}</p>
-        </Card>
-      </Shell>
-    );
-  }
+  // ── qr is guaranteed non-null from here ───────────────────────────────
+  const ownerContact: Contact = {
+    id:           qr.ownerId,
+    name:         qr.ownerName,
+    relationship: "Owner",
+    isOwner:      true,
+  };
 
-  const contacts = data.contacts ?? [];
+  // sc is a stable non-null snapshot used inside the bottom sheet
+  const sc = selectedContact;
 
   return (
-    <Shell className="justify-start pt-8">
-      <div className="mb-6 text-center">
-        <Logo size="md" />
-        <div className="mt-3 inline-flex items-center gap-1.5 bg-red-50 text-red-600 text-xs font-bold px-3 py-1.5 rounded-full">
-          <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-          Emergency
-        </div>
+    <div className="min-h-screen bg-white flex flex-col">
+
+      {/* ── Emergency header ──────────────────────────────────────────── */}
+      <div className="bg-[#FF3B30] px-6 pb-8 pt-[max(48px,calc(env(safe-area-inset-top)+24px))]">
+        <p className="text-white/70 text-[11px] font-semibold tracking-[0.12em] uppercase mb-3">
+          Emergency scan
+        </p>
+        <h1 className="text-white text-[32px] font-bold tracking-tight leading-snug">
+          {qr.ownerName}
+        </h1>
+        <p className="text-white/70 text-[14px] mt-1">needs help</p>
+
+        <button
+          onClick={() => openCallSheet(ownerContact)}
+          className="inline-flex items-center gap-2 mt-5 bg-white/20 text-white text-[14px] font-semibold px-4 py-2.5 rounded-full backdrop-blur-sm border border-white/30 active:bg-white/30 transition-colors"
+        >
+          📞 Call {qr.ownerName} directly
+        </button>
       </div>
 
-      {/* Owner info */}
-      <Card className="mb-4">
-        <p className="text-xs text-gray-400 uppercase tracking-wide mb-3 font-semibold">Owner</p>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-bold text-gray-900 text-lg">{data.ownerName ?? "Unknown"}</p>
-            <p className="text-sm text-gray-500">Owner of this SafeScan</p>
-          </div>
-          {data.ownerPhone && (
-            <a href={`tel:${data.ownerPhone}`}>
-              <Button size="sm" variant="secondary">📞 Call</Button>
-            </a>
-          )}
-        </div>
-      </Card>
+      {/* ── National emergency number ─────────────────────────────────── */}
+      <div className="px-6 py-4 border-b border-[#F2F2F7] flex items-center justify-between">
+  <p className="text-[13px] text-[#8E8E93]">National emergency line</p>
+  
+    <a href="tel:112" className="inline-flex items-center gap-1.5 text-[#FF3B30] font-bold text-[17px] min-h-[44px]">
+  📞 112
+</a>
+</div>
 
-      {/* Phone prompt modal */}
-      {callState === "prompting" && activeContact && (
-        <Card className="mb-4 border-2 border-red-100">
-          <p className="text-sm font-semibold text-gray-800 mb-1">
-            Call {activeContact.name}
-          </p>
-          <p className="text-xs text-gray-400 mb-3">
-            Enter your phone number. You'll receive a call first, then be connected to {activeContact.name}. Neither of you will see the other's number.
-          </p>
-          <Input
-            placeholder="+91 your phone number"
-            type="tel"
-            value={scannerPhone}
-            onChange={(e) => setScannerPhone(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && confirmCall()}
+      {/* ── Contacts list ─────────────────────────────────────────────── */}
+      <main className="flex-1 px-6 py-6 flex flex-col gap-3 pb-[max(32px,env(safe-area-inset-bottom))]">
+        <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-[#AEAEB2] mb-1">
+          Emergency contacts
+        </p>
+
+        {qr.contacts.length === 0 && (
+          <div className="py-12 text-center">
+            <p className="text-[#AEAEB2] text-[14px]">No contacts set up yet</p>
+          </div>
+        )}
+
+        {qr.contacts.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => openCallSheet(c)}
+            className="w-full flex items-center justify-between bg-[#F9F9FB] border border-[#E5E5EA] rounded-2xl px-5 py-4 text-left min-h-[72px] active:bg-[#F2F2F7] transition-colors"
+          >
+            <div>
+              <p className="font-semibold text-[17px] text-[#1C1C1E] tracking-tight">{c.name}</p>
+              <p className="text-[13px] text-[#8E8E93] mt-0.5">{c.relationship}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-[#FF3B30] flex items-center justify-center text-white text-[18px] shrink-0">
+              📞
+            </div>
+          </button>
+        ))}
+      </main>
+
+      {/* ── Call bottom sheet ─────────────────────────────────────────── */}
+      {sc !== null && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"
+            onClick={resetCall}
           />
-          {callError && <Alert>{callError}</Alert>}
-          <div className="flex gap-2 mt-3">
-            <Button
-              size="sm"
-              onClick={confirmCall}
-              loading={calling}
-              className="flex-1"
-            >
-              📞 Call now
-            </Button>
-            <Button size="sm" variant="ghost" onClick={resetCall}>✕</Button>
-          </div>
-        </Card>
-      )}
+          <div className="relative z-10 bg-white w-full rounded-t-[28px] px-6 pt-6 pb-[max(32px,env(safe-area-inset-bottom))] animate-slide-up shadow-[0_-8px_48px_rgba(0,0,0,0.16)]">
+            <div className="w-10 h-1 bg-[#E5E5EA] rounded-full mx-auto mb-6" />
 
-      {/* Call success */}
-      {callState === "called" && activeContact && (
-        <Card className="mb-4 text-center border-2 border-green-100">
-          <div className="text-3xl mb-2">📞</div>
-          <p className="font-semibold text-gray-800">Calling you now...</p>
-          <p className="text-xs text-gray-400 mt-1">
-            Pick up the call on <strong>{scannerPhone}</strong> to be connected to {activeContact.name}.
-          </p>
-          <Button size="sm" variant="ghost" className="mt-3" onClick={resetCall}>
-            Done
-          </Button>
-        </Card>
-      )}
-
-      {/* Contacts */}
-      {contacts.length === 0 ? (
-        <Card className="text-center">
-          <p className="text-gray-600 text-sm mb-2">
-            <strong>{data.ownerName}</strong> hasn't set up emergency contacts yet.
-          </p>
-          <p className="text-gray-500 text-sm">
-            If this is an emergency, please call <strong>112</strong>.
-          </p>
-        </Card>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold px-1">
-            Emergency Contacts
-          </p>
-          {contacts.map((contact) => (
-            <Card key={contact.id} className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-900">{contact.name}</p>
-                  <p className="text-xs text-gray-400">{contact.relationship}</p>
+            {callState === "called" ? (
+              <div className="text-center py-4">
+                <div className="w-16 h-16 rounded-full bg-[#EDFAF1] flex items-center justify-center text-[32px] mx-auto mb-5">
+                  ✅
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => promptCall(contact)}
-                  disabled={callState === "prompting" || callState === "calling"}
-                >
-                  📞 Call
+                <h3 className="font-bold text-[20px] text-[#1C1C1E] tracking-tight mb-2">
+                  Call initiated
+                </h3>
+                <p className="text-[14px] text-[#8E8E93] leading-relaxed mb-8">
+                  Answer your phone. You'll be connected to{" "}
+                  <span className="font-semibold text-[#3A3A3C]">{sc.name}</span>.
+                </p>
+                <Button variant="secondary" fullWidth onClick={resetCall}>
+                  Done
                 </Button>
               </div>
-            </Card>
-          ))}
+            ) : (
+              <>
+                <div className="mb-6">
+                  <h3 className="font-bold text-[22px] text-[#1C1C1E] tracking-tight leading-snug">
+                    Call {sc.name}
+                  </h3>
+                  <p className="text-[13px] text-[#8E8E93] mt-1">
+                    {sc.isOwner ? "Owner" : sc.relationship} · your number stays private
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-[13px] font-medium text-[#3A3A3C] mb-1.5">
+                    Your phone number
+                  </p>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    autoFocus
+                    placeholder="98765 43210"
+                    value={scannerPhone}
+                    onChange={(e) => { setScannerPhone(e.target.value); setCallError(""); }}
+                    className="w-full rounded-xl border border-[#E5E5EA] px-4 py-3.5 text-[17px] text-[#1C1C1E] bg-white focus:outline-none focus:border-[#C7C7CC] focus:ring-2 focus:ring-[#FF3B30]/20 transition min-h-[52px] placeholder:text-[#AEAEB2]"
+                  />
+                  {callError && (
+                    <p className="text-[12px] text-[#FF3B30] mt-1.5">{callError}</p>
+                  )}
+                  <p className="text-[12px] text-[#AEAEB2] mt-1.5">
+                    We'll call you first, then connect you — numbers stay private.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleCall}
+                  loading={callState === "calling"}
+                  size="lg"
+                  fullWidth
+                >
+                  {callState === "calling" ? "Connecting…" : `Call ${sc.name}`}
+                </Button>
+
+                <button
+                  onClick={resetCall}
+                  className="w-full text-center text-[14px] text-[#AEAEB2] mt-4 min-h-[44px] active:text-[#636366] transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
-
-      <p className="text-center text-xs text-gray-400 mt-8">
-        Powered by SafeScan • In an emergency always call 112
-      </p>
-    </Shell>
+    </div>
   );
 }
