@@ -1,11 +1,11 @@
 package com.safescan24.backend.controller;
 
 import com.safescan24.backend.repository.EmergencyContactRepository;
+import com.safescan24.backend.repository.UserRepository;
 import com.safescan24.backend.service.ExotelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.Map;
 import java.util.UUID;
 
@@ -15,42 +15,53 @@ import java.util.UUID;
 public class CallController {
 
     private final EmergencyContactRepository contactRepo;
+    private final UserRepository userRepo;
     private final ExotelService exotelService;
 
     @PostMapping("/initiate")
     public ResponseEntity<?> initiateCall(@RequestBody Map<String, String> body) {
         String contactId   = body.get("contactId");
+        String ownerId     = body.get("ownerId");
         String scannerPhone = body.get("scannerPhone");
 
-        if (contactId == null || scannerPhone == null || scannerPhone.isBlank()) {
+        if ((contactId == null && ownerId == null) || scannerPhone == null || scannerPhone.isBlank()) {
             return ResponseEntity.badRequest()
-                    .body(Map.of("error", "contactId and scannerPhone are required"));
+                    .body(Map.of("error", "contactId or ownerId, and scannerPhone are required"));
         }
 
-        // Normalize scanner phone — ensure +91 prefix
+        // Normalize scanner phone
         if (!scannerPhone.startsWith("+")) {
             scannerPhone = "+91" + scannerPhone.replaceAll("[^0-9]", "");
         }
 
-        // Look up contact's private phone from DB — never sent to frontend
-        var contact = contactRepo.findById(UUID.fromString(contactId)).orElse(null);
-        if (contact == null) {
-            return ResponseEntity.notFound().build();
+        // Resolve target phone — from contact OR owner
+        String targetPhone;
+
+        if (contactId != null) {
+            // Existing flow — look up emergency contact
+            var contact = contactRepo.findById(UUID.fromString(contactId)).orElse(null);
+            if (contact == null)
+                return ResponseEntity.notFound().build();
+            targetPhone = contact.getPhone();
+        } else {
+            // New flow — look up owner directly
+            var owner = userRepo.findById(UUID.fromString(ownerId)).orElse(null);
+            if (owner == null)
+                return ResponseEntity.notFound().build();
+            targetPhone = owner.getPhone();
         }
 
-        String contactPhone = contact.getPhone();
-        if (contactPhone == null || contactPhone.isBlank()) {
+        if (targetPhone == null || targetPhone.isBlank()) {
             return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Contact has no phone number"));
+                    .body(Map.of("error", "No phone number found"));
         }
 
-        // Normalize contact phone
-        if (!contactPhone.startsWith("+")) {
-            contactPhone = "+91" + contactPhone.replaceAll("[^0-9]", "");
+        // Normalize target phone
+        if (!targetPhone.startsWith("+")) {
+            targetPhone = "+91" + targetPhone.replaceAll("[^0-9]", "");
         }
 
-        boolean success = exotelService.initiateCall(scannerPhone, contactPhone);
-
+        boolean success = exotelService.initiateCall(scannerPhone, targetPhone);
         if (success) {
             return ResponseEntity.ok(Map.of("status", "calling"));
         } else {
