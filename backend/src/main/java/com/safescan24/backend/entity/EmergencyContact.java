@@ -16,8 +16,9 @@ public class EmergencyContact {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "qr_slug_id", nullable = false)
-    private UUID qrSlugId;
+    // Changed from qr_slug_id → user_id (contacts now belong to user, not QR)
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(nullable = false)
     private String name;

@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.Map;
-//import java.util.UUID;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -50,12 +50,15 @@ public class FirebaseAuthController {
     /**
      * POST /api/auth/firebase-verify
      * Body: { firebase_token, name?, slug? }
-     * 
-     * 1. Verifies the Firebase ID token
-     * 2. Extracts phone number
-     * 3. Creates user if new, finds if existing
-     * 4. Claims QR slug if provided
-     * 5. Returns our JWT
+     *
+     * Smart new/existing user detection — the tab the user picked doesn't matter.
+     * Source of truth is always the DB (phone number).
+     *
+     * Cases:
+     *   - Phone NOT in DB + name provided  → create new user, claim slug, return JWT
+     *   - Phone NOT in DB + no name        → 409 NAME_REQUIRED (frontend switches to "New user" tab)
+     *   - Phone IN DB                      → find existing user, claim slug, return JWT
+     *                                         (name param ignored if user already has one)
      */
     @PostMapping("/firebase-verify")
     public ResponseEntity<?> firebaseVerify(@RequestBody Map<String, String> body) {
@@ -75,30 +78,47 @@ public class FirebaseAuthController {
             return ResponseEntity.status(401).body(Map.of("error", "Invalid Firebase token"));
         }
 
-   // 2. Extract phone
-Object phoneClaim = decoded.getClaims().get("phone_number");
-if (phoneClaim == null)
-    return ResponseEntity.badRequest().body(Map.of("error", "No phone number in token"));
+        // 2. Extract phone
+        Object phoneClaim = decoded.getClaims().get("phone_number");
+        if (phoneClaim == null)
+            return ResponseEntity.badRequest().body(Map.of("error", "No phone number in token"));
 
-final String phone = phoneClaim.toString();
-if (phone.isBlank())
-    return ResponseEntity.badRequest().body(Map.of("error", "No phone number in token"));
+        final String phone = phoneClaim.toString();
+        if (phone.isBlank())
+            return ResponseEntity.badRequest().body(Map.of("error", "No phone number in token"));
 
-// 3. Find or create user
-User user = userRepo.findByPhone(phone).orElseGet(() -> {
-    User u = new User();
-    u.setPhone(phone);
-    u.setName(name != null && !name.isBlank() ? name : "");
-    return userRepo.save(u);
-});
+        // 3. Smart find-or-create
+        //    We check existence first so we can respond differently for new vs existing.
+        Optional<User> existing = userRepo.findByPhone(phone);
+        boolean isNewUser = existing.isEmpty();
 
-        // Update name if provided and currently blank
-        if (name != null && !name.isBlank() && (user.getName() == null || user.getName().isBlank())) {
-            user.setName(name);
-            userRepo.save(user);
+        User user;
+
+        if (isNewUser) {
+            // New phone — name is required to register
+            if (name == null || name.isBlank()) {
+                log.info("New phone {} tried to claim without a name", phone);
+                return ResponseEntity.status(409).body(Map.of(
+                    "error",     "NAME_REQUIRED",
+                    "message",   "Looks like you're new here — please enter your name to continue."
+                ));
+            }
+            User u = new User();
+            u.setPhone(phone);
+            u.setName(name.trim());
+            user = userRepo.save(u);
+            log.info("Created new user {} for phone {}", user.getId(), phone);
+        } else {
+            user = existing.get();
+            // If existing user has no name yet (edge case) and name was provided, update it
+            if (name != null && !name.isBlank() && (user.getName() == null || user.getName().isBlank())) {
+                user.setName(name.trim());
+                userRepo.save(user);
+            }
+            log.info("Found existing user {} for phone {}", user.getId(), phone);
         }
 
-        // 4. Claim slug if provided
+        // 4. Claim slug if provided (safe — skips if already claimed)
         if (slug != null && !slug.isBlank()) {
             final User finalUser = user;
             slugRepo.findBySlug(slug).ifPresent(qr -> {
@@ -116,7 +136,8 @@ User user = userRepo.findByPhone(phone).orElseGet(() -> {
         String token = jwtService.generateToken(user.getId().toString());
 
         return ResponseEntity.ok(Map.of(
-            "token", token,
+            "token",     token,
+            "isNewUser", isNewUser,
             "user", Map.of(
                 "id",    user.getId().toString(),
                 "name",  user.getName() != null ? user.getName() : "",
