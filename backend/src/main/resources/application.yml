@@ -17,10 +17,13 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 app:
+  # ✅ Fast2SMS — no DLT needed, ₹0.35/SMS, works immediately
   fast2sms-api-key: KjzHALWwWzy7SkWiF3613IKW4eyfcRS7zI26dyHPywrCCPIEWAObFkw5v4ab
+
   admin-secret: QRGuardianAdmin2026SecureKey
   jwt-secret: mySecretKey1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef
   frontend-url: http://localhost:3000
+
   turn-url: "turns:placeholder.metered.live:443"
   turn-secret: placeholder
   exotel-sid: safescan241
